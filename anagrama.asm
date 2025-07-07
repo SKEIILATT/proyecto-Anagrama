@@ -6,8 +6,13 @@
 .data
 ; Mensajes a mostrar en pantalla
 prompt_1  db 'Ingrese la primera palabra a analizar: $',0
-prompt_2  db 'Ingrese la segunda palabra a analizar: $',0 
-
+prompt_2  db 'Ingrese la segunda palabra a analizar: $',0  
+msgnoAnagrama db 'No son anagrama $',0
+msgsiAnagrama db 'Son anagrama $',0
+contador_1 db 27 dup(0) ; Contadores que nos sirven para verificar la cantidad de letras que hay en las palabras
+                        ; para poder determinar si son anagramas o no, sin necesidad de ordenarlas
+contador_2 db 27 dup(0) ; Lo mismo pero para el segundo buffer 
+                                      
 ;Buffers para permitir las entradas las palabras o frases
 buffer_e1 db 45 ; Tamano maximo que el usuario podra ingresar
           db ?  ; Espacio reservado para capturar la cantidad de palabras que el usuario ingresa
@@ -114,53 +119,160 @@ verificar_letra_b2:
 no_es_mayus_b2:
     inc di
     loop verificar_letra_b2
-           
-    ;Esta seccion solo la puse para probar que vale xd lo de no case sensitive"
-    ;Esto despues se borrar y se sigue con la logica
-    ;Mostrar cadena
+  
+;Verificar longitud de cada palabra para ver si son anagramas o no
+mov al,[buffer_e1+1] ;Accedemos a la cantidad real de car�cteres ingresados por el usuario     
+mov bl, [buffer_e2+1]
+cmp al, bl 
+jne no_esAnagrama
+je verificar_caracteres  
+      
+verificar_caracteres:  
+    ;Reiniciar punteros para iniciar recorridos
     lea si, buffer_e1+2
-    mov cl, [buffer_e1+1]
-    mov ch, 0
-    add si, cx
-    mov byte ptr [si], '$'
-    lea dx, buffer_e1+2
-    mov ah, 09h
-    int 21h 
-    ;Salto de linea
-    mov ah, 02h  ; Instruccion de escritura de un caracter
-    mov dl, 0Dh  ; Retorno de carro para volver al inicio del prompt
-    int 21h      ; Muestro en pantalla
-        
-    mov ah, 02h  ; Instruccion de escritura de un caracter
-    mov dl, 0Ah  ; Instruccion de avance de linea
-    int 21h      ; Muestro en pantalla
-        
-    ;Mostrar cadena
     lea di, buffer_e2+2
-    mov cl, [buffer_e2+1]
-    mov ch, 0
-    add di, cx
-    mov byte ptr [di], '$'
-    lea dx, buffer_e2+2
-    mov ah, 09h
-    int 21h          
+    ;Inicializamos elcontador
+    mov cl, [buffer_e1+1];    
+;En esta seccion verificamos si el caracter tiene tilde o no para no afectar 
+contar_b1:  
+    ;Comparamos si alguna vocal tiene tilde
+    mov al, [si]
+    cmp al, 160 ;comparamos si el valor ascii de la vocal a es el mismo valor ascii de la �.
+    je es_a_b1
+    cmp al, 130 
+    je es_e_b1
+    cmp al, 161
+    je es_i_b1
+    cmp al, 162 
+    je es_o_b1
+    cmp al, 163
+    je es_u_b1 
+    ;Comparamos si est� presente la �
+    cmp al, 164
+    je es_enie_b1  
+    ;Calculamos el indice
+    sub al, 'a'
+    cmp al, 14
+    jl contar_ok_b1
+    inc al
+    jmp contar_ok_b1
+
+
+es_a_b1:
+    mov al, 0
+    jmp contar_ok_b1
+
+es_e_b1:
+    mov al, 4
+    jmp contar_ok_b1
+
+es_i_b1:
+    mov al, 8
+    jmp contar_ok_b1
+
+es_o_b1:
+    mov al, 15   ; o  �ndice 15 (despu�s de �)
+    jmp contar_ok_b1
+
+es_u_b1:
+    mov al, 20
+    jmp contar_ok_b1
+
+es_enie_b1:
+    mov al, 14   ; �  �ndice 14
     
-    ;Terminar programa
+contar_ok_b1:
+    mov bl, al
+    mov bh, 0               ; Limpio BH para tener BX = AL
+    add bx, offset contador_1  ; BX = direcci�n base + �ndice
+    inc byte ptr [bx]       ; Incremento el contador
+    inc si
+    loop contar_b1
+    
+;El mismo proceso para la palabra 2
+mov cl, [buffer_e2+1]  ; Inicializar contador con longitud de la segunda palabra
+mov ch, 0              ; Limpio la  parte alta del contador  
+
+contar_b2:
+    mov al, [di]
+
+    cmp al, 160
+    je es_a_b2
+    cmp al, 130
+    je es_e_b2
+    cmp al, 161
+    je es_i_b2
+    cmp al, 162
+    je es_o_b2
+    cmp al, 163
+    je es_u_b2
+
+    cmp al, 164
+    je es_ene_b2
+
+    sub al, 'a'
+    cmp al, 14
+    jl contar_ok_b2
+    inc al
+    jmp contar_ok_b2
+
+es_a_b2:
+    mov al, 0
+    jmp contar_ok_b2
+
+es_e_b2:
+    mov al, 4
+    jmp contar_ok_b2
+
+es_i_b2:
+    mov al, 8
+    jmp contar_ok_b2
+
+es_o_b2:
+    mov al, 15
+    jmp contar_ok_b2
+
+es_u_b2:
+    mov al, 20
+    jmp contar_ok_b2
+
+es_ene_b2:
+    mov al, 14
+
+contar_ok_b2:
+    mov bl, al
+    mov bh, 0
+    inc [contador_2+bx]
+    inc di
+    loop contar_b2  ; Ahora el bucle terminar� correctamente
+
+    ; ----- COMPARAR -----
+    lea si, contador_1
+    lea di, contador_2
+    mov cx, 27
+
+comparar:
+    mov al, [si]
+    mov bl, [di]
+    cmp al, bl
+    jne no_esAnagrama
+    inc si
+    inc di
+    loop comparar
+
+    ; Si son iguales: s� es anagrama
+    mov dx, offset msgsiAnagrama
+    mov ah, 09h
+    int 21h
+    jmp fin
+
+no_esAnagrama:
+    mov dx, offset msgnoAnagrama
+    mov ah, 09h
+    int 21h
+
+fin:
     mov ah, 4Ch
     int 21h
-    
-    main endp
-    end main
-    
-    
-    
-    
-        
-    
- 
-    
-    
-    
-    
-    
-                      
+main endp
+end main
