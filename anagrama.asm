@@ -11,6 +11,7 @@ msgnoAnagrama db 'No son anagrama $',0
 msgsiAnagrama db 'Son anagrama $',0
 prompt_continuar db 'Desea continuar? (S/N): $',0
 salto_linea db 0Dh, 0Ah, '$',0
+msg_presionar db 'Presione cualquier tecla para continuar...$',0
 
 contador_1 db 27 dup(0) ; Contadores que nos sirven para verificar la cantidad de letras que hay en las palabras
                         ; para poder determinar si son anagramas o no, sin necesidad de ordenarlas
@@ -38,6 +39,9 @@ main proc
     mov ax, @data
     mov ds, ax              
 programa_principal:
+    ; Limpiar pantalla al inicio
+    call limpiar_pantalla
+    
     ; Limpiar contadores
     call limpiar_contadores
     
@@ -71,14 +75,26 @@ programa_principal:
     mov ah, 09h
     int 21h
     
-    ; Procesar primera palabra (quitar espacios y convertir a minÃºsculas)
+    ; Procesar primera palabra (quitar espacios y convertir a minúsculas)
     call procesar_palabra1
     
-    ; Procesar segunda palabra (quitar espacios y convertir a minÃºsculas)
+    ; Procesar segunda palabra (quitar espacios y convertir a minúsculas)
     call procesar_palabra2
     
     ; Verificar si son anagramas
     call verificar_anagrama
+    
+    ; Mostrar mensaje para presionar tecla
+    mov dx, offset msg_presionar
+    mov ah, 09h
+    int 21h
+    
+    ; Esperar tecla
+    mov ah, 00h
+    int 16h
+    
+    ; Limpiar pantalla antes de preguntar si continuar
+    call limpiar_pantalla
     
     ; Preguntar si continuar
     mov dx, offset prompt_continuar
@@ -99,18 +115,43 @@ programa_principal:
     jmp fin_programa
 
 continuar_programa:
-    mov dx, offset salto_linea
-    mov ah, 09h
-    int 21h
-    mov dx, offset salto_linea
-    mov ah, 09h
-    int 21h
     jmp programa_principal
 
 fin_programa:
     mov ah, 4Ch
     int 21h
 main endp
+
+; Procedimiento para limpiar pantalla
+limpiar_pantalla proc
+    push ax
+    push bx
+    push cx
+    push dx
+    
+    ; Limpiar pantalla completa
+    mov ah, 06h     ; Función scroll
+    mov al, 0       ; Limpiar toda la pantalla
+    mov bh, 07h     ; Fondo negro + texto blanco
+    mov ch, 0       ; Fila inicial
+    mov cl, 0       ; Columna inicial
+    mov dh, 24      ; Fila final
+    mov dl, 79      ; Columna final
+    int 10h
+    
+    ; Posicionar cursor al inicio
+    mov ah, 02h
+    mov bh, 0
+    mov dh, 0
+    mov dl, 0
+    int 10h
+    
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+limpiar_pantalla endp
 
 ; Procedimiento para limpiar contadores
 limpiar_contadores proc
@@ -151,22 +192,46 @@ procesar_palabra1 proc
     lea di, buffer_sin_esp1 ; Destino
     mov cl, [buffer_e1+1]   ; Longitud
     mov ch, 0
-    xor bl, bl              ; Contador de caracteres vÃ¡lidos
+    xor bl, bl              ; Contador de caracteres válidos
     
 proc_loop1:
     mov al, [si]
     
-    ; Verificar si es espacio o salto de lÃ­nea
+    ; Verificar si es espacio, salto de línea o signos de puntuación
     cmp al, ' '
     je skip_char1
     cmp al, 0Dh     ; Retorno de carro
     je skip_char1
-    cmp al, 0Ah     ; Salto de lÃ­nea
+    cmp al, 0Ah     ; Salto de línea
     je skip_char1
     cmp al, 09h     ; Tab
     je skip_char1
+    cmp al, ','     ; Coma
+    je skip_char1
+    cmp al, '.'     ; Punto
+    je skip_char1
+    cmp al, ';'     ; Punto y coma
+    je skip_char1
+    cmp al, ':'     ; Dos puntos
+    je skip_char1
+    cmp al, '!'     ; Exclamación
+    je skip_char1
+    cmp al, '?'     ; Interrogación
+    je skip_char1
+    cmp al, '-'     ; Guión
+    je skip_char1
+    cmp al, '_'     ; Guión bajo
+    je skip_char1
+    cmp al, '('     ; Paréntesis izquierdo
+    je skip_char1
+    cmp al, ')'     ; Paréntesis derecho
+    je skip_char1
+    cmp al, '"'     ; Comillas
+    je skip_char1
+    cmp al, 27h     ; Apostrofe
+    je skip_char1
     
-    ; Convertir a minÃºscula si es mayÃºscula
+    ; Convertir a minúscula si es mayúscula
     cmp al, 'A'
     jl no_mayus1
     cmp al, 'Z'
@@ -174,7 +239,7 @@ proc_loop1:
     add al, 'a' - 'A'
     
 no_mayus1:
-    ; Guardar caracter vÃ¡lido
+    ; Guardar caracter válido
     mov [di], al
     inc di
     inc bl
@@ -205,22 +270,46 @@ procesar_palabra2 proc
     lea di, buffer_sin_esp2 ; Destino
     mov cl, [buffer_e2+1]   ; Longitud
     mov ch, 0
-    xor bl, bl              ; Contador de caracteres vÃ¡lidos
+    xor bl, bl              ; Contador de caracteres válidos
     
 proc_loop2:
     mov al, [si]
     
-    ; Verificar si es espacio o salto de lÃ­nea
+    ; Verificar si es espacio, salto de línea o signos de puntuación
     cmp al, ' '
     je skip_char2
     cmp al, 0Dh     ; Retorno de carro
     je skip_char2
-    cmp al, 0Ah     ; Salto de lÃ­nea
+    cmp al, 0Ah     ; Salto de línea
     je skip_char2
     cmp al, 09h     ; Tab
     je skip_char2
+    cmp al, ','     ; Coma
+    je skip_char2
+    cmp al, '.'     ; Punto
+    je skip_char2
+    cmp al, ';'     ; Punto y coma
+    je skip_char2
+    cmp al, ':'     ; Dos puntos
+    je skip_char2
+    cmp al, '!'     ; Exclamación
+    je skip_char2
+    cmp al, '?'     ; Interrogación
+    je skip_char2
+    cmp al, '-'     ; Guión
+    je skip_char2
+    cmp al, '_'     ; Guión bajo
+    je skip_char2
+    cmp al, '('     ; Paréntesis izquierdo
+    je skip_char2
+    cmp al, ')'     ; Paréntesis derecho
+    je skip_char2
+    cmp al, '"'     ; Comillas
+    je skip_char2
+    cmp al, 27h     ; Apostrofe
+    je skip_char2
     
-    ; Convertir a minÃºscula si es mayÃºscula
+    ; Convertir a minúscula si es mayúscula
     cmp al, 'A'
     jl no_mayus2
     cmp al, 'Z'
@@ -228,7 +317,7 @@ proc_loop2:
     add al, 'a' - 'A'
     
 no_mayus2:
-    ; Guardar caracter vÃ¡lido
+    ; Guardar caracter válido
     mov [di], al
     inc di
     inc bl
@@ -306,36 +395,31 @@ comparar:
     loop comparar
     
     ; Son anagramas - mostrar en verde
-    call color_verde
+    call cambiar_color_verde
     mov dx, offset msgsiAnagrama
     mov ah, 09h
     int 21h
+    call restaurar_color
     
-    ; Esperar tecla para continuar
-    mov ah, 00h
-    int 16h
-    
-    call color_normal
-    jmp fin_verificacion
-    
-no_es_anagrama:
-    ; No son anagramas - mostrar en rojo
-    call color_rojo
-    mov dx, offset msgnoAnagrama
-    mov ah, 09h
-    int 21h
-    
-    ; Esperar tecla para continuar
-    mov ah, 00h
-    int 16h
-    
-    call color_normal
-    
-fin_verificacion:
     mov dx, offset salto_linea
     mov ah, 09h
     int 21h
     
+    jmp fin_verificacion
+    
+no_es_anagrama:
+    ; No son anagramas - mostrar en rojo
+    call cambiar_color_rojo
+    mov dx, offset msgnoAnagrama
+    mov ah, 09h
+    int 21h
+    call restaurar_color
+    
+    mov dx, offset salto_linea
+    mov ah, 09h
+    int 21h
+    
+fin_verificacion:
     pop di
     pop si
     pop cx
@@ -344,22 +428,22 @@ fin_verificacion:
     ret
 verificar_anagrama endp
 
-; Procedimiento para obtener Ã­ndice de carÃ¡cter
+; Procedimiento para obtener índice de carácter
 obtener_indice proc
     push bx
     
     ; Verificar vocales con tilde
-    cmp al, 160  ; Ã¡
+    cmp al, 160  ; á
     je es_a
-    cmp al, 130  ; Ã©
+    cmp al, 130  ; é
     je es_e
-    cmp al, 161  ; Ã­
+    cmp al, 161  ; í
     je es_i
-    cmp al, 162  ; Ã³
+    cmp al, 162  ; ó
     je es_o
-    cmp al, 163  ; Ãº
+    cmp al, 163  ; ú
     je es_u
-    cmp al, 164  ; Ã±
+    cmp al, 164  ; ñ
     je es_enie
     
     ; Caracter normal
@@ -392,28 +476,34 @@ indice_ok:
     ret
 obtener_indice endp
 
-; Procedimiento para establecer color verde (texto con fondo verde)
-color_verde proc
+; Procedimiento para cambiar color a verde (fondo verde)
+cambiar_color_verde proc
     push ax
     push bx
     push cx
     push dx
     
-    ; Establecer atributos de color
-    mov ah, 06h     ; FunciÃ³n scroll
-    mov al, 0       ; Limpiar
+    ; Obtener posición actual del cursor
+    mov ah, 03h
+    mov bh, 0
+    int 10h
+    ; DH = fila, DL = columna
+    
+    ; Limpiar la línea actual con fondo verde
+    mov ah, 06h     ; Función scroll
+    mov al, 0       ; No hacer scroll
     mov bh, 2Fh     ; Fondo verde + texto blanco
-    mov ch, 0       ; Fila inicial
-    mov cl, 0       ; Columna inicial  
-    mov dh, 0       ; Fila final
-    mov dl, 79      ; Columna final
+    mov ch, dh      ; Fila inicial = fila actual
+    mov cl, 0       ; Columna inicial = 0
+    mov dh, dh      ; Fila final = fila actual
+    mov dl, 79      ; Columna final = 79
     int 10h
     
-    ; Posicionar cursor al inicio
+    ; Reposicionar cursor al inicio de la línea
     mov ah, 02h
     mov bh, 0
-    mov dh, 0
-    mov dl, 0
+    mov dh, ch      ; Restaurar fila original
+    mov dl, 0       ; Columna 0
     int 10h
     
     pop dx
@@ -421,30 +511,36 @@ color_verde proc
     pop bx
     pop ax
     ret
-color_verde endp
+cambiar_color_verde endp
 
-; Procedimiento para establecer color rojo (texto con fondo rojo)
-color_rojo proc
+; Procedimiento para cambiar color a rojo (fondo rojo)
+cambiar_color_rojo proc
     push ax
     push bx
     push cx
     push dx
     
-    ; Establecer atributos de color
-    mov ah, 06h     ; FunciÃ³n scroll
-    mov al, 0       ; Limpiar
+    ; Obtener posición actual del cursor
+    mov ah, 03h
+    mov bh, 0
+    int 10h
+    ; DH = fila, DL = columna
+    
+    ; Limpiar la línea actual con fondo rojo
+    mov ah, 06h     ; Función scroll
+    mov al, 0       ; No hacer scroll
     mov bh, 4Fh     ; Fondo rojo + texto blanco
-    mov ch, 0       ; Fila inicial
-    mov cl, 0       ; Columna inicial
-    mov dh, 0       ; Fila final
-    mov dl, 79      ; Columna final
+    mov ch, dh      ; Fila inicial = fila actual
+    mov cl, 0       ; Columna inicial = 0
+    mov dh, dh      ; Fila final = fila actual
+    mov dl, 79      ; Columna final = 79
     int 10h
     
-    ; Posicionar cursor al inicio
+    ; Reposicionar cursor al inicio de la línea
     mov ah, 02h
     mov bh, 0
-    mov dh, 0
-    mov dl, 0
+    mov dh, ch      ; Restaurar fila original
+    mov dl, 0       ; Columna 0
     int 10h
     
     pop dx
@@ -452,37 +548,19 @@ color_rojo proc
     pop bx
     pop ax
     ret
-color_rojo endp
+cambiar_color_rojo endp
 
 ; Procedimiento para restaurar color normal
-color_normal proc
+restaurar_color proc
     push ax
     push bx
-    push cx
-    push dx
     
-    ; Restaurar atributos normales
-    mov ah, 06h     ; FunciÃ³n scroll
-    mov al, 0       ; Limpiar
-    mov bh, 07h     ; Fondo negro + texto blanco
-    mov ch, 0       ; Fila inicial
-    mov cl, 0       ; Columna inicial
-    mov dh, 24      ; Fila final
-    mov dl, 79      ; Columna final
-    int 10h
+    ; No hacer nada, el color se restaurará automáticamente
+    ; cuando se limpie la pantalla o se escriba nuevo texto
     
-    ; Posicionar cursor al inicio
-    mov ah, 02h
-    mov bh, 0
-    mov dh, 0
-    mov dl, 0
-    int 10h
-    
-    pop dx
-    pop cx
     pop bx
     pop ax
     ret
-color_normal endp
+restaurar_color endp
 
 end main
