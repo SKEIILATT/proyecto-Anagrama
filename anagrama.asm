@@ -9,6 +9,9 @@ prompt_1  db 'Ingrese la primera palabra a analizar: $',0
 prompt_2  db 'Ingrese la segunda palabra a analizar: $',0  
 msgnoAnagrama db 'No son anagrama $',0
 msgsiAnagrama db 'Son anagrama $',0
+prompt_continuar db 'Desea continuar? (S/N): $',0
+salto_linea db 0Dh, 0Ah, '$',0
+
 contador_1 db 27 dup(0) ; Contadores que nos sirven para verificar la cantidad de letras que hay en las palabras
                         ; para poder determinar si son anagramas o no, sin necesidad de ordenarlas
 contador_2 db 27 dup(0) ; Lo mismo pero para el segundo buffer 
@@ -22,12 +25,21 @@ buffer_e2 db 45
           db ?
           db 45 dup(?)
 
+;Buffers sin espacios para el procesamiento
+buffer_sin_esp1 db 45 dup(?)
+buffer_sin_esp2 db 45 dup(?)
+len_sin_esp1 db ?
+len_sin_esp2 db ?
+
 ;Seccion del codigo
 .code
 main proc
     ;Inicializacion de datos
     mov ax, @data
     mov ds, ax              
+programa_principal:
+    ; Limpiar contadores
+    call limpiar_contadores
     
     ;Mostrar prompt
     mov dx, offset prompt_1
@@ -42,13 +54,9 @@ main proc
     int 21h
     
     ;Salto de linea
-    mov ah, 02h  ; Instruccion de escritura de un caracter
-    mov dl, 0Dh  ; Retorno de carro para volver al inicio del prompt
-    int 21h      ; Muestro en pantalla
-    
-    mov ah, 02h  ; Instruccion de escritura de un caracter
-    mov dl, 0Ah  ; Instruccion de avance de linea
-    int 21h      ; Muestro en pantalla
+    mov dx, offset salto_linea
+    mov ah, 09h
+    int 21h
     
     ;Muestro el segundo prompt
     mov dx, offset prompt_2   
@@ -59,194 +67,231 @@ main proc
     mov ah, 0Ah
     int 21h  
     ;Salto de linea
-    mov ah, 02h  ; Instruccion de escritura de un caracter
-    mov dl, 0Dh  ; Retorno de carro para volver al inicio del prompt
-    int 21h      ; Muestro en pantalla
+    mov dx, offset salto_linea
+    mov ah, 09h
+    int 21h
     
-    mov ah, 02h  ; Instruccion de escritura de un caracter
-    mov dl, 0Ah  ; Instruccion de avance de linea
-    int 21h      ; Muestro en pantalla
+    ; Procesar primera palabra (quitar espacios y convertir a minúsculas)
+    call procesar_palabra1
     
-    ;Punteros en el primer caracter de cada buffer para comenzar con el programa
-    lea si, buffer_e1+2
-    lea di, buffer_e2+2 
- 
-    ;Iniciar contador para convertir en minuscula todas las letras
-    mov cl, [buffer_e1+1] 
-    mov ch, 0
+    ; Procesar segunda palabra (quitar espacios y convertir a minúsculas)
+    call procesar_palabra2
     
-verificar_letra_b1:   
-    ;Movemos el puntero al primer caracter del buffer
-    mov al, [si]                                     
-    ;Comparo el valor ASCII de ambos caracteres
-    ;Para saber si es mayuscula, el valor ASCII debe de estar entre 65 y 90 
-    cmp al, 'A' ; 'A' representa el 65 en ASCII 
-    ;Si el codigo ASCII de al es menor que 65, salta a no_es_mayus debido a que ya sabemos que no sera mayuscula
-    jl no_es_mayus_b1
-    cmp al, 'Z'; 'Z' representa el 90 en ASCII
-    ;Si es mayor que 90, saltamos de igual manera a no_es_mayus debido a que ya sabemos que no es mayuscula
-    jg no_es_mayus_b1
-    ;Si es mayuscula, la transformamos a minuscula
-    add al, 'a'- 'A' ; Para transformar a minuscula, basta con restar la diferencia entre el valor ASCII de la minuscula con la mayuscula
-    ;Reescribimos en el buffer el nuevo valor
-    mov [si], al
+    ; Verificar si son anagramas
+    call verificar_anagrama
+    
+    ; Preguntar si continuar
+    mov dx, offset prompt_continuar
+    mov ah, 09h
+    int 21h
+    
+    mov ah, 01h  ; Leer un caracter
+    int 21h
+    
+    cmp al, 'S'
+    je continuar_programa
+    cmp al, 's'
+    je continuar_programa
+    cmp al, 'N'
+    je fin_programa
+    cmp al, 'n'
+    je fin_programa
+    jmp fin_programa
 
-;Etiqueta que dado que no es mayuscula, avanza al siguiente caracter y repite el bucle
-no_es_mayus_b1:
-    inc si
-    loop verificar_letra_b1    
-    
-    mov cl, [buffer_e2+1]
-    mov ch, 0
+continuar_programa:
+    mov dx, offset salto_linea
+    mov ah, 09h
+    int 21h
+    mov dx, offset salto_linea
+    mov ah, 09h
+    int 21h
+    jmp programa_principal
 
-verificar_letra_b2:   
-    ;Movemos el puntero al primer caracter del buffer
-    mov al, [di]                                     
-    ;Comparo el valor ASCII de ambos caracteres
-    ;Para saber si es mayuscula, el valor ASCII debe de estar entre 65 y 90 
-    cmp al, 'A' ; 'A' representa el 65 en ASCII 
-    ;Si el codigo ASCII de al es menor que 65, salta a no_es_mayus debido a que ya sabemos que no sera mayuscula
-    jl no_es_mayus_b2
-    cmp al, 'Z'; 'Z' representa el 90 en ASCII
-    ;Si es mayor que 90, saltamos de igual manera a no_es_mayus debido a que ya sabemos que no es mayuscula
-    jg no_es_mayus_b2
-    ;Si es mayuscula, la transformamos a minuscula
-    add al, 'a'- 'A' ; Para transformar a minuscula, basta con restar la diferencia entre el valor ASCII de la minuscula con la mayuscula
-    ;Reescribimos en el buffer el nuevo valor
+fin_programa:
+    mov ah, 4Ch
+    int 21h
+main endp
+
+; Procedimiento para limpiar contadores
+limpiar_contadores proc
+    push ax
+    push cx
+    push di
+    
+    lea di, contador_1
+    mov cx, 27
+    xor al, al
+limpiar_loop1:
     mov [di], al
-
-;Etiqueta que dado que no es mayuscula, avanza al siguiente caracter y repite el bucle
-no_es_mayus_b2:
     inc di
-    loop verificar_letra_b2
-  
-;Verificar longitud de cada palabra para ver si son anagramas o no
-mov al,[buffer_e1+1] ;Accedemos a la cantidad real de car�cteres ingresados por el usuario     
-mov bl, [buffer_e2+1]
-cmp al, bl 
-jne no_esAnagrama
-je verificar_caracteres  
-      
-verificar_caracteres:  
-    ;Reiniciar punteros para iniciar recorridos
-    lea si, buffer_e1+2
-    lea di, buffer_e2+2
-    ;Inicializamos elcontador
-    mov cl, [buffer_e1+1];    
-;En esta seccion verificamos si el caracter tiene tilde o no para no afectar 
-contar_b1:  
-    ;Comparamos si alguna vocal tiene tilde
-    mov al, [si]
-    cmp al, 160 ;comparamos si el valor ascii de la vocal a es el mismo valor ascii de la �.
-    je es_a_b1
-    cmp al, 130 
-    je es_e_b1
-    cmp al, 161
-    je es_i_b1
-    cmp al, 162 
-    je es_o_b1
-    cmp al, 163
-    je es_u_b1 
-    ;Comparamos si est� presente la �
-    cmp al, 164
-    je es_enie_b1  
-    ;Calculamos el indice
-    sub al, 'a'
-    cmp al, 14
-    jl contar_ok_b1
-    inc al
-    jmp contar_ok_b1
-
-
-es_a_b1:
-    mov al, 0
-    jmp contar_ok_b1
-
-es_e_b1:
-    mov al, 4
-    jmp contar_ok_b1
-
-es_i_b1:
-    mov al, 8
-    jmp contar_ok_b1
-
-es_o_b1:
-    mov al, 15   ; o  �ndice 15 (despu�s de �)
-    jmp contar_ok_b1
-
-es_u_b1:
-    mov al, 20
-    jmp contar_ok_b1
-
-es_enie_b1:
-    mov al, 14   ; �  �ndice 14
+    loop limpiar_loop1
     
-contar_ok_b1:
+    lea di, contador_2
+    mov cx, 27
+limpiar_loop2:
+    mov [di], al
+    inc di
+    loop limpiar_loop2
+    
+    pop di
+    pop cx
+    pop ax
+    ret
+limpiar_contadores endp
+
+; Procedimiento para procesar primera palabra
+procesar_palabra1 proc
+    push ax
+    push bx
+    push cx
+    push si
+    push di
+    
+    lea si, buffer_e1+2     ; Fuente
+    lea di, buffer_sin_esp1 ; Destino
+    mov cl, [buffer_e1+1]   ; Longitud
+    mov ch, 0
+    xor bl, bl              ; Contador de caracteres válidos
+    
+proc_loop1:
+    mov al, [si]
+    
+    ; Verificar si es espacio o salto de línea
+    cmp al, ' '
+    je skip_char1
+    cmp al, 0Dh     ; Retorno de carro
+    je skip_char1
+    cmp al, 0Ah     ; Salto de línea
+    je skip_char1
+    cmp al, 09h     ; Tab
+    je skip_char1
+    
+    ; Convertir a minúscula si es mayúscula
+    cmp al, 'A'
+    jl no_mayus1
+    cmp al, 'Z'
+    jg no_mayus1
+    add al, 'a' - 'A'
+    
+no_mayus1:
+    ; Guardar caracter válido
+    mov [di], al
+    inc di
+    inc bl
+    
+skip_char1:
+    inc si
+    loop proc_loop1
+    
+    mov [len_sin_esp1], bl  ; Guardar longitud sin espacios
+    
+    pop di
+    pop si
+    pop cx
+    pop bx
+    pop ax
+    ret
+procesar_palabra1 endp
+
+; Procedimiento para procesar segunda palabra
+procesar_palabra2 proc
+    push ax
+    push bx
+    push cx
+    push si
+    push di
+    
+    lea si, buffer_e2+2     ; Fuente
+    lea di, buffer_sin_esp2 ; Destino
+    mov cl, [buffer_e2+1]   ; Longitud
+    mov ch, 0
+    xor bl, bl              ; Contador de caracteres válidos
+    
+proc_loop2:
+    mov al, [si]
+    
+    ; Verificar si es espacio o salto de línea
+    cmp al, ' '
+    je skip_char2
+    cmp al, 0Dh     ; Retorno de carro
+    je skip_char2
+    cmp al, 0Ah     ; Salto de línea
+    je skip_char2
+    cmp al, 09h     ; Tab
+    je skip_char2
+    
+    ; Convertir a minúscula si es mayúscula
+    cmp al, 'A'
+    jl no_mayus2
+    cmp al, 'Z'
+    jg no_mayus2
+    add al, 'a' - 'A'
+    
+no_mayus2:
+    ; Guardar caracter válido
+    mov [di], al
+    inc di
+    inc bl
+    
+skip_char2:
+    inc si
+    loop proc_loop2
+    
+    mov [len_sin_esp2], bl  ; Guardar longitud sin espacios
+    
+    pop di
+    pop si
+    pop cx
+    pop bx
+    pop ax
+    ret
+procesar_palabra2 endp
+
+; Procedimiento para verificar anagrama
+verificar_anagrama proc
+    push ax
+    push bx
+    push cx
+    push si
+    push di
+    
+    ; Verificar longitud
+    mov al, [len_sin_esp1]
+    mov bl, [len_sin_esp2]
+    cmp al, bl
+    jne no_es_anagrama
+    
+    ; Contar caracteres del primer buffer
+    lea si, buffer_sin_esp1
+    mov cl, [len_sin_esp1]
+    mov ch, 0
+    
+contar_b1:
+    mov al, [si]
+    call obtener_indice
     mov bl, al
-    mov bh, 0               ; Limpio BH para tener BX = AL
-    add bx, offset contador_1  ; BX = direcci�n base + �ndice
-    inc byte ptr [bx]       ; Incremento el contador
+    mov bh, 0
+    add bx, offset contador_1
+    inc byte ptr [bx]
     inc si
     loop contar_b1
     
-;El mismo proceso para la palabra 2
-mov cl, [buffer_e2+1]  ; Inicializar contador con longitud de la segunda palabra
-mov ch, 0              ; Limpio la  parte alta del contador  
-
+    ; Contar caracteres del segundo buffer
+    lea si, buffer_sin_esp2
+    mov cl, [len_sin_esp2]
+    mov ch, 0
+    
 contar_b2:
-    mov al, [di]
-
-    cmp al, 160
-    je es_a_b2
-    cmp al, 130
-    je es_e_b2
-    cmp al, 161
-    je es_i_b2
-    cmp al, 162
-    je es_o_b2
-    cmp al, 163
-    je es_u_b2
-
-    cmp al, 164
-    je es_ene_b2
-
-    sub al, 'a'
-    cmp al, 14
-    jl contar_ok_b2
-    inc al
-    jmp contar_ok_b2
-
-es_a_b2:
-    mov al, 0
-    jmp contar_ok_b2
-
-es_e_b2:
-    mov al, 4
-    jmp contar_ok_b2
-
-es_i_b2:
-    mov al, 8
-    jmp contar_ok_b2
-
-es_o_b2:
-    mov al, 15
-    jmp contar_ok_b2
-
-es_u_b2:
-    mov al, 20
-    jmp contar_ok_b2
-
-es_ene_b2:
-    mov al, 14
-
-contar_ok_b2:
+    mov al, [si]
+    call obtener_indice
     mov bl, al
     mov bh, 0
-    inc [contador_2+bx]
-    inc di
-    loop contar_b2  ; Ahora el bucle terminar� correctamente
-
-    ; ----- COMPARAR -----
+    add bx, offset contador_2
+    inc byte ptr [bx]
+    inc si
+    loop contar_b2
+    
+    ; Comparar contadores
     lea si, contador_1
     lea di, contador_2
     mov cx, 27
@@ -255,24 +300,189 @@ comparar:
     mov al, [si]
     mov bl, [di]
     cmp al, bl
-    jne no_esAnagrama
+    jne no_es_anagrama
     inc si
     inc di
     loop comparar
-
-    ; Si son iguales: s� es anagrama
+    
+    ; Son anagramas - mostrar en verde
+    call color_verde
     mov dx, offset msgsiAnagrama
     mov ah, 09h
     int 21h
-    jmp fin
-
-no_esAnagrama:
+    
+    ; Esperar tecla para continuar
+    mov ah, 00h
+    int 16h
+    
+    call color_normal
+    jmp fin_verificacion
+    
+no_es_anagrama:
+    ; No son anagramas - mostrar en rojo
+    call color_rojo
     mov dx, offset msgnoAnagrama
     mov ah, 09h
     int 21h
-
-fin:
-    mov ah, 4Ch
+    
+    ; Esperar tecla para continuar
+    mov ah, 00h
+    int 16h
+    
+    call color_normal
+    
+fin_verificacion:
+    mov dx, offset salto_linea
+    mov ah, 09h
     int 21h
-main endp
+    
+    pop di
+    pop si
+    pop cx
+    pop bx
+    pop ax
+    ret
+verificar_anagrama endp
+
+; Procedimiento para obtener índice de carácter
+obtener_indice proc
+    push bx
+    
+    ; Verificar vocales con tilde
+    cmp al, 160  ; á
+    je es_a
+    cmp al, 130  ; é
+    je es_e
+    cmp al, 161  ; í
+    je es_i
+    cmp al, 162  ; ó
+    je es_o
+    cmp al, 163  ; ú
+    je es_u
+    cmp al, 164  ; ñ
+    je es_enie
+    
+    ; Caracter normal
+    sub al, 'a'
+    cmp al, 14
+    jl indice_ok
+    inc al
+    jmp indice_ok
+    
+es_a:
+    mov al, 0
+    jmp indice_ok
+es_e:
+    mov al, 4
+    jmp indice_ok
+es_i:
+    mov al, 8
+    jmp indice_ok
+es_o:
+    mov al, 15
+    jmp indice_ok
+es_u:
+    mov al, 20
+    jmp indice_ok
+es_enie:
+    mov al, 14
+    
+indice_ok:
+    pop bx
+    ret
+obtener_indice endp
+
+; Procedimiento para establecer color verde (texto con fondo verde)
+color_verde proc
+    push ax
+    push bx
+    push cx
+    push dx
+    
+    ; Establecer atributos de color
+    mov ah, 06h     ; Función scroll
+    mov al, 0       ; Limpiar
+    mov bh, 2Fh     ; Fondo verde + texto blanco
+    mov ch, 0       ; Fila inicial
+    mov cl, 0       ; Columna inicial  
+    mov dh, 0       ; Fila final
+    mov dl, 79      ; Columna final
+    int 10h
+    
+    ; Posicionar cursor al inicio
+    mov ah, 02h
+    mov bh, 0
+    mov dh, 0
+    mov dl, 0
+    int 10h
+    
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+color_verde endp
+
+; Procedimiento para establecer color rojo (texto con fondo rojo)
+color_rojo proc
+    push ax
+    push bx
+    push cx
+    push dx
+    
+    ; Establecer atributos de color
+    mov ah, 06h     ; Función scroll
+    mov al, 0       ; Limpiar
+    mov bh, 4Fh     ; Fondo rojo + texto blanco
+    mov ch, 0       ; Fila inicial
+    mov cl, 0       ; Columna inicial
+    mov dh, 0       ; Fila final
+    mov dl, 79      ; Columna final
+    int 10h
+    
+    ; Posicionar cursor al inicio
+    mov ah, 02h
+    mov bh, 0
+    mov dh, 0
+    mov dl, 0
+    int 10h
+    
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+color_rojo endp
+
+; Procedimiento para restaurar color normal
+color_normal proc
+    push ax
+    push bx
+    push cx
+    push dx
+    
+    ; Restaurar atributos normales
+    mov ah, 06h     ; Función scroll
+    mov al, 0       ; Limpiar
+    mov bh, 07h     ; Fondo negro + texto blanco
+    mov ch, 0       ; Fila inicial
+    mov cl, 0       ; Columna inicial
+    mov dh, 24      ; Fila final
+    mov dl, 79      ; Columna final
+    int 10h
+    
+    ; Posicionar cursor al inicio
+    mov ah, 02h
+    mov bh, 0
+    mov dh, 0
+    mov dl, 0
+    int 10h
+    
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+color_normal endp
+
 end main
